@@ -760,7 +760,6 @@ static int try_delta(git_packbuilder *pb, struct unpacked *trg,
 	size_t trg_size, src_size, delta_size, sizediff, max_size, sz;
 	size_t ref_depth;
 	void *delta_buf;
-	int error;
 
 	/* Don't bother doing diffs between different types */
 	if (trg_object->type != src_object->type) {
@@ -773,31 +772,6 @@ static int try_delta(git_packbuilder *pb, struct unpacked *trg,
 	/* Let's not bust the allowed depth. */
 	if (src->depth >= max_depth)
 		return 0;
-
-	/* Support reuse-delta */
-	error = git_odb__read_delta(pb->odb, &src_object->id, &trg_object->id, NULL, NULL);
-	if (error && error != GIT_ENOTFOUND)
-		return -1;
-	else if (!error) {
-		/* We have an existing delta. We'll compute the actual delta size later. */
-		trg_object->delta = src_object;
-		trg_object->delta_size = 0;
-		trg_object->reused = 1;
-		trg->depth = src->depth + 1;
-
-		/* Free existing delta data if we have any. */
-		git_packbuilder__cache_lock(pb);
-		if (trg_object->delta_data) {
-			git__free(trg_object->delta_data);
-			assert(pb->delta_cache_size >= trg_object->delta_size);
-			pb->delta_cache_size -= trg_object->delta_size;
-			trg_object->delta_data = NULL;
-		}
-		git_packbuilder__cache_unlock(pb);
-
-		*ret = 2;
-		return 0;
-	}
 
 	/* Now some size filtering heuristics. */
 	trg_size = trg_object->size;
@@ -992,6 +966,8 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 	for (;;) {
 		struct unpacked *n = array + idx;
 		size_t max_depth, j, best_base = SIZE_MAX;
+		git_oid oid;
+		int found;
 
 		git_packbuilder__progress_lock(pb);
 		if (!*list_size) {
@@ -1032,28 +1008,67 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 			max_depth -= delta_limit;
 		}
 
-		j = window;
-		while (--j > 0) {
-			int ret;
-			size_t other_idx = idx + j;
-			struct unpacked *m;
 
-			if (other_idx >= window)
-				other_idx -= window;
+		/* Support reuse-delta */
+		memset(&oid, 0, sizeof(oid));
+		error = git_odb__read_delta(pb->odb, &oid, &n->object->id, NULL, NULL);
+		if (!error) {
+			/* We have an existing delta. Let's see if we have the base object in our window. */
+			j = window;
+			while (--j > 0) {
+				size_t other_idx = idx + j;
+				struct unpacked *m;
 
-			m = array + other_idx;
-			if (!m->object)
-				break;
+				if (other_idx >= window)
+					other_idx -= window;
 
-			if (try_delta(pb, n, m, max_depth, &mem_usage, &ret) < 0)
-				goto on_error;
-			if (ret < 0)
-				break;
-			else if (ret == 2) {
-				best_base = other_idx;
-				break;
-			} else if (ret > 0)
-				best_base = other_idx;
+				m = array + other_idx;
+
+				if (!m->object)
+					break;
+
+				/* The object is in our window. */
+				if (git_oid_equal(&m->object->id, &oid)) {
+					struct git_pobject *obj = n->object;
+					obj->delta = m->object;
+					/* We'll compute the actual delta size later. */
+					obj->delta_size = 0;
+					obj->delta_data = NULL;
+					obj->reused = 1;
+					n->depth = m->depth + 1;
+
+					best_base = other_idx;
+
+					found = 1;
+					break;
+				}
+			}
+		}
+
+		if (!found) {
+			j = window;
+			while (--j > 0) {
+				int ret;
+				size_t other_idx = idx + j;
+				struct unpacked *m;
+
+				if (other_idx >= window)
+					other_idx -= window;
+
+				m = array + other_idx;
+				if (!m->object)
+					break;
+
+				if (try_delta(pb, n, m, max_depth, &mem_usage, &ret) < 0)
+					goto on_error;
+				if (ret < 0)
+					break;
+				else if (ret == 2) {
+					best_base = other_idx;
+					break;
+				} else if (ret > 0)
+					best_base = other_idx;
+			}
 		}
 
 		/*

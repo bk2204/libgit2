@@ -127,7 +127,7 @@ int git_packfile__name(char **out, const char *path);
 int git_packfile__get_delta(
 		struct git_pack_file *p,
 		git_off_t offset,
-		const git_oid *against,
+		git_oid *against,
 		void **delta,
 		size_t *size);
 

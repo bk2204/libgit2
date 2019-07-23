@@ -100,10 +100,13 @@ struct git_odb_backend {
 	 * storing it and its size. The delta and the size pointer may be NULL, in
 	 * which case the return value indicates simply whether there is such a delta.
 	 *
+	 * If src is the all-zeros OID, it is replaced with the OID of the actual
+	 * base in the existing delta.
+	 *
 	 * If no such delta already exists, returns `GIT_ENOTFOUND`.
 	 */
 	int GIT_CALLBACK(read_delta)(
-		git_odb_backend *, const git_oid *, const git_oid *, void **, size_t *);
+		git_odb_backend *, git_oid *, const git_oid *, void **, size_t *);
 
 	/**
 	 * Frees any resources held by the odb (including the `git_odb_backend`

@@ -470,10 +470,30 @@ int git_packfile_unpack_header(
 	return 0;
 }
 
+static int nth_packed_object_oid(struct git_oid *oid, const struct git_pack_file *p, uint32_t n)
+{
+	const unsigned char *index = p->index_map.data;
+	const unsigned char *end = index + p->index_map.len;
+	index += 4 * 256;
+	if (p->index_version == 1) {
+		git_oid_fromraw(oid, (index + 24 * n + 4));
+		return 0;
+	} else {
+		index += 8 + n * GIT_OID_RAWSZ;
+
+		/* Make sure we're not being sent out of bounds */
+		if (index >= end - 8)
+			return -1;
+
+		git_oid_fromraw(oid, index);
+		return 0;
+	}
+}
+
 int git_packfile__get_delta(
 		struct git_pack_file *p,
 		git_off_t offset,
-		const git_oid *against,
+		git_oid *against,
 		void **delta,
 		size_t *size)
 {
@@ -493,17 +513,25 @@ int git_packfile__get_delta(
 		git_off_t against_offset;
 		git_oid unused;
 		void *buf;
-		size_t bufsize, off;
+		size_t bufsize, off, i;
 		ssize_t chunk;
-
-		if (pack_entry_find_offset(&against_offset, &unused, p, against, GIT_OID_HEXSZ) < 0)
-			return GIT_ENOTFOUND;
+		int found = 0;
 
 		base_offset = get_delta_base(p, &w_curs, &curpos, type, offset);
+
+		/* Search the index for the item index and then get the OID from it.*/
+		if (git_oid_is_zero(against)) {
+			for (i = 0; i < p->num_objects; i++)
+				if (base_offset == nth_packed_object_offset(p, i)) {
+					found = 1;
+					nth_packed_object_oid(against, p, i);
+				}
+		} else if (!pack_entry_find_offset(&against_offset, &unused, p, against, GIT_OID_HEXSZ))
+			found = 1;
+
 		git_mwindow_close(&w_curs);
 
-		/* This offset is for some other object. */
-		if (against_offset != base_offset)
+		if (!found)
 			return GIT_ENOTFOUND;
 
 		/* All we want to know is whether one exists. */

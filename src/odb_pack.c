@@ -552,7 +552,7 @@ static int pack_backend__writepack(struct git_odb_writepack **out,
 }
 
 static int pack_backend__read_delta(
-	git_odb_backend *_backend, const git_oid *src, const git_oid *tgt,
+	git_odb_backend *_backend, git_oid *src, const git_oid *tgt,
 	void **delta, size_t *size)
 {
 	struct pack_backend *backend;
