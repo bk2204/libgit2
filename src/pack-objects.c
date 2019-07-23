@@ -285,7 +285,7 @@ static int get_delta(void **out, git_odb *odb, git_pobject *po)
 
 	*out = NULL;
 
-	if (po->reused) {
+	if (po->reused && !po->delta_data) {
 		if (git_odb__read_delta(odb, &po->delta->id, &po->id, out, &po->delta_size))
 			goto on_error;
 		return 0;
@@ -750,6 +750,76 @@ static int delta_cacheable(
 	return 0;
 }
 
+static int record_delta(git_packbuilder *pb, struct unpacked *trg,
+		     struct unpacked *src, void *delta_buf, size_t delta_size)
+{
+	git_pobject *trg_object = trg->object;
+	git_pobject *src_object = src->object;
+
+	git_packbuilder__cache_lock(pb);
+	if (trg_object->delta_data) {
+		git__free(trg_object->delta_data);
+		assert(pb->delta_cache_size >= trg_object->delta_size);
+		pb->delta_cache_size -= trg_object->delta_size;
+		trg_object->delta_data = NULL;
+	}
+
+	if (delta_cacheable(pb, src_object->size, trg_object->size, delta_size)) {
+		bool overflow = git__add_sizet_overflow(
+			&pb->delta_cache_size, pb->delta_cache_size, delta_size);
+
+		git_packbuilder__cache_unlock(pb);
+
+		if (overflow) {
+			git__free(delta_buf);
+			return -1;
+		}
+
+		trg_object->delta_data = git__realloc(delta_buf, delta_size);
+		GIT_ERROR_CHECK_ALLOC(trg_object->delta_data);
+	} else {
+		/* create delta when writing the pack */
+		git_packbuilder__cache_unlock(pb);
+		git__free(delta_buf);
+	}
+
+	trg_object->delta = src_object;
+	trg_object->delta_size = delta_size;
+	trg->depth = src->depth + 1;
+
+	return 0;
+}
+
+static int try_reuse_delta(git_packbuilder *pb, struct unpacked *trg,
+		     struct unpacked *src, size_t max_depth, int *ret)
+{
+	void *delta;
+	struct git_pobject *obj = trg->object;
+	int error;
+	size_t delta_size;
+
+	/* Don't bother doing diffs between different types */
+	if (obj->type != src->object->type) {
+		*ret = -1;
+		return 0;
+	}
+
+	*ret = 0;
+
+	/* Let's not bust the allowed depth. */
+	if (src->depth >= max_depth)
+		return 0;
+
+	if ((error = git_odb__read_delta(pb->odb, &src->object->id, &obj->id, &delta, &delta_size)))
+		return 0;
+
+	error = record_delta(pb, trg, src, delta, delta_size);
+	if (!error)
+		*ret = 1;
+	obj->reused = 1;
+	return error;
+}
+
 static int try_delta(git_packbuilder *pb, struct unpacked *trg,
 		     struct unpacked *src, size_t max_depth,
 			 size_t *mem_usage, int *ret)
@@ -760,6 +830,7 @@ static int try_delta(git_packbuilder *pb, struct unpacked *trg,
 	size_t trg_size, src_size, delta_size, sizediff, max_size, sz;
 	size_t ref_depth;
 	void *delta_buf;
+	int retval;
 
 	/* Don't bother doing diffs between different types */
 	if (trg_object->type != src_object->type) {
@@ -857,38 +928,10 @@ static int try_delta(git_packbuilder *pb, struct unpacked *trg,
 		}
 	}
 
-	git_packbuilder__cache_lock(pb);
-	if (trg_object->delta_data) {
-		git__free(trg_object->delta_data);
-		assert(pb->delta_cache_size >= trg_object->delta_size);
-		pb->delta_cache_size -= trg_object->delta_size;
-		trg_object->delta_data = NULL;
-	}
-	if (delta_cacheable(pb, src_size, trg_size, delta_size)) {
-		bool overflow = git__add_sizet_overflow(
-			&pb->delta_cache_size, pb->delta_cache_size, delta_size);
-
-		git_packbuilder__cache_unlock(pb);
-
-		if (overflow) {
-			git__free(delta_buf);
-			return -1;
-		}
-
-		trg_object->delta_data = git__realloc(delta_buf, delta_size);
-		GIT_ERROR_CHECK_ALLOC(trg_object->delta_data);
-	} else {
-		/* create delta when writing the pack */
-		git_packbuilder__cache_unlock(pb);
-		git__free(delta_buf);
-	}
-
-	trg_object->delta = src_object;
-	trg_object->delta_size = delta_size;
-	trg->depth = src->depth + 1;
-
-	*ret = 1;
-	return 0;
+	retval = record_delta(pb, trg, src, delta_buf, delta_size);
+	if (!retval)
+		*ret = 1;
+	return retval;
 }
 
 static size_t check_delta_limit(git_pobject *me, size_t n)
@@ -966,7 +1009,6 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 	for (;;) {
 		struct unpacked *n = array + idx;
 		size_t max_depth, j, best_base = SIZE_MAX;
-		git_oid oid;
 		int found;
 
 		git_packbuilder__progress_lock(pb);
@@ -1010,38 +1052,25 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 
 
 		/* Support reuse-delta */
-		memset(&oid, 0, sizeof(oid));
-		error = git_odb__read_delta(pb->odb, &oid, &n->object->id, NULL, NULL);
-		if (!error) {
-			/* We have an existing delta. Let's see if we have the base object in our window. */
-			j = window;
-			while (--j > 0) {
-				size_t other_idx = idx + j;
-				struct unpacked *m;
+		j = window;
+		while (--j > 0) {
+			size_t other_idx = idx + j;
+			struct unpacked *m;
+			int ret;
 
-				if (other_idx >= window)
-					other_idx -= window;
+			if (other_idx >= window)
+				other_idx -= window;
 
-				m = array + other_idx;
+			m = array + other_idx;
 
-				if (!m->object)
-					break;
+			if (!m->object)
+				break;
 
-				/* The object is in our window. */
-				if (git_oid_equal(&m->object->id, &oid)) {
-					struct git_pobject *obj = n->object;
-					obj->delta = m->object;
-					/* We'll compute the actual delta size later. */
-					obj->delta_size = 0;
-					obj->delta_data = NULL;
-					obj->reused = 1;
-					n->depth = m->depth + 1;
-
-					best_base = other_idx;
-
-					found = 1;
-					break;
-				}
+			/* The object is in our window. */
+			if (!try_reuse_delta(pb, n, m, max_depth, &ret) && ret > 0) {
+				best_base = other_idx;
+				found = 1;
+				break;
 			}
 		}
 
