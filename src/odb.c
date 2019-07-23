@@ -1444,6 +1444,8 @@ int git_odb__read_delta(
 
 		if (b->read_delta != NULL)
 			error = b->read_delta(b, src, tgt, delta, size);
+		if (error != GIT_ENOTFOUND)
+			break;
 	}
 
 	return error;

@@ -795,7 +795,7 @@ static int try_delta(git_packbuilder *pb, struct unpacked *trg,
 		}
 		git_packbuilder__cache_unlock(pb);
 
-		*ret = 1;
+		*ret = 2;
 		return 0;
 	}
 
@@ -1049,7 +1049,10 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 				goto on_error;
 			if (ret < 0)
 				break;
-			else if (ret > 0)
+			else if (ret == 2) {
+				best_base = other_idx;
+				break;
+			} else if (ret > 0)
 				best_base = other_idx;
 		}
 
