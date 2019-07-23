@@ -124,6 +124,12 @@ typedef struct git_packfile_stream {
 size_t git_packfile__object_header(unsigned char *hdr, size_t size, git_object_t type);
 
 int git_packfile__name(char **out, const char *path);
+int git_packfile__get_delta(
+		struct git_pack_file *p,
+		git_off_t offset,
+		const git_oid *against,
+		void **delta,
+		size_t *size);
 
 int git_packfile_unpack_header(
 		size_t *size_p,

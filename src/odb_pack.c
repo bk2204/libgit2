@@ -551,6 +551,24 @@ static int pack_backend__writepack(struct git_odb_writepack **out,
 	return 0;
 }
 
+static int pack_backend__read_delta(
+	git_odb_backend *_backend, const git_oid *src, const git_oid *tgt,
+	void **delta, size_t *size)
+{
+	struct pack_backend *backend;
+	struct git_pack_entry e;
+	int error;
+
+	assert(_backend);
+
+	backend = (struct pack_backend *)_backend;
+
+	error = pack_entry_find(&e, (struct pack_backend *)backend, tgt) == 0;
+	if (error)
+		return error;
+	return git_packfile__get_delta(e.p, e.offset, src, delta, size);
+}
+
 static void pack_backend__free(git_odb_backend *_backend)
 {
 	struct pack_backend *backend;
@@ -591,6 +609,7 @@ static int pack_backend__alloc(struct pack_backend **out, size_t initial_size)
 	backend->parent.foreach = &pack_backend__foreach;
 	backend->parent.writepack = &pack_backend__writepack;
 	backend->parent.freshen = &pack_backend__freshen;
+	backend->parent.read_delta = &pack_backend__read_delta;
 	backend->parent.free = &pack_backend__free;
 
 	*out = backend;

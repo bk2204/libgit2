@@ -470,6 +470,82 @@ int git_packfile_unpack_header(
 	return 0;
 }
 
+int git_packfile__get_delta(
+		struct git_pack_file *p,
+		git_off_t offset,
+		const git_oid *against,
+		void **delta,
+		size_t *size)
+{
+	git_mwindow *w_curs = NULL;
+	git_off_t curpos = offset;
+	git_object_t type;
+	git_off_t base_offset;
+	size_t hdrsize;
+	int error;
+
+	error = git_packfile_unpack_header(&hdrsize, &type, &p->mwf, &w_curs, &curpos);
+	if (error < 0)
+		return error;
+
+	if (type == GIT_OBJECT_OFS_DELTA || type == GIT_OBJECT_REF_DELTA) {
+		git_packfile_stream stream;
+		git_off_t against_offset;
+		git_oid unused;
+		void *buf;
+		size_t bufsize, off;
+		ssize_t chunk;
+
+		if (pack_entry_find_offset(&against_offset, &unused, p, against, GIT_OID_HEXSZ) < 0)
+			return GIT_ENOTFOUND;
+
+		base_offset = get_delta_base(p, &w_curs, &curpos, type, offset);
+		git_mwindow_close(&w_curs);
+
+		/* This offset is for some other object. */
+		if (against_offset != base_offset)
+			return GIT_ENOTFOUND;
+
+		/* All we want to know is whether one exists. */
+		if (!delta)
+			return 0;
+
+		off = 0;
+		bufsize = 65536;
+		buf = git__malloc(bufsize);
+		if ((error = git_packfile_stream_open(&stream, p, curpos)) < 0)
+			return error;
+		while ((chunk = git_packfile_stream_read(&stream, buf + off, bufsize - off)) > 0) {
+			GIT_ERROR_CHECK_ALLOC_ADD(&off, off, chunk);
+
+			if (bufsize == off) {
+				size_t newsize;
+				void *newbuf;
+
+				GIT_ERROR_CHECK_ALLOC_ADD(&newsize, bufsize, 1024);
+				GIT_ERROR_CHECK_ALLOC_MULTIPLY(&newsize, newsize / 2, 3);
+				newbuf = git__realloc(buf, newsize);
+				if (!newbuf) {
+					chunk = -1;
+					break;
+				}
+				bufsize = newsize;
+				buf = newbuf;
+			}
+		}
+		git_packfile_stream_dispose(&stream);
+		if (!chunk) {
+			*delta = buf;
+			*size = off;
+		} else {
+			git__free(buf);
+			error = GIT_EBUFS;
+		}
+		return error;
+	}
+	return GIT_ENOTFOUND;
+}
+
 int git_packfile_resolve_header(
 		size_t *size_p,
 		git_object_t *type_p,

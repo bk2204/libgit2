@@ -49,7 +49,8 @@ typedef struct git_pobject {
 	int written:1,
 	    recursing:1,
 	    tagged:1,
-	    filled:1;
+	    filled:1,
+			reused:1;
 } git_pobject;
 
 struct git_packbuilder {

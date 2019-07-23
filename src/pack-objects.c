@@ -285,6 +285,12 @@ static int get_delta(void **out, git_odb *odb, git_pobject *po)
 
 	*out = NULL;
 
+	if (po->reused) {
+		if (git_odb__read_delta(odb, &po->delta->id, &po->id, out, &po->delta_size))
+			goto on_error;
+		return 0;
+	}
+
 	if (git_odb_read(&src, odb, &po->delta->id) < 0 ||
 	    git_odb_read(&trg, odb, &po->id) < 0)
 		goto on_error;
@@ -754,6 +760,7 @@ static int try_delta(git_packbuilder *pb, struct unpacked *trg,
 	size_t trg_size, src_size, delta_size, sizediff, max_size, sz;
 	size_t ref_depth;
 	void *delta_buf;
+	int error;
 
 	/* Don't bother doing diffs between different types */
 	if (trg_object->type != src_object->type) {
@@ -763,11 +770,34 @@ static int try_delta(git_packbuilder *pb, struct unpacked *trg,
 
 	*ret = 0;
 
-	/* TODO: support reuse-delta */
-
 	/* Let's not bust the allowed depth. */
 	if (src->depth >= max_depth)
 		return 0;
+
+	/* Support reuse-delta */
+	error = git_odb__read_delta(pb->odb, &src_object->id, &trg_object->id, NULL, NULL);
+	if (error && error != GIT_ENOTFOUND)
+		return -1;
+	else if (!error) {
+		/* We have an existing delta. We'll compute the actual delta size later. */
+		trg_object->delta = src_object;
+		trg_object->delta_size = 0;
+		trg_object->reused = 1;
+		trg->depth = src->depth + 1;
+
+		/* Free existing delta data if we have any. */
+		git_packbuilder__cache_lock(pb);
+		if (trg_object->delta_data) {
+			git__free(trg_object->delta_data);
+			assert(pb->delta_cache_size >= trg_object->delta_size);
+			pb->delta_cache_size -= trg_object->delta_size;
+			trg_object->delta_data = NULL;
+		}
+		git_packbuilder__cache_unlock(pb);
+
+		*ret = 1;
+		return 0;
+	}
 
 	/* Now some size filtering heuristics. */
 	trg_size = trg_object->size;

@@ -96,6 +96,16 @@ struct git_odb_backend {
 	int GIT_CALLBACK(freshen)(git_odb_backend *, const git_oid *);
 
 	/**
+	 * Reads an existing delta between src (the first oid) and tgt (the second),
+	 * storing it and its size. The delta and the size pointer may be NULL, in
+	 * which case the return value indicates simply whether there is such a delta.
+	 *
+	 * If no such delta already exists, returns `GIT_ENOTFOUND`.
+	 */
+	int GIT_CALLBACK(read_delta)(
+		git_odb_backend *, const git_oid *, const git_oid *, void **, size_t *);
+
+	/**
 	 * Frees any resources held by the odb (including the `git_odb_backend`
 	 * itself). An odb backend implementation must provide this function.
 	 */

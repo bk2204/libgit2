@@ -1429,6 +1429,26 @@ int git_odb_stream_read(git_odb_stream *stream, char *buffer, size_t len)
 	return stream->read(stream, buffer, len);
 }
 
+int git_odb__read_delta(
+	git_odb *db, const git_oid *src, const git_oid *tgt, void **delta,
+	size_t *size)
+{
+	size_t i;
+	int error = GIT_ENOTFOUND;
+
+	assert(db);
+
+	for (i = 0; i < db->backends.length && error < 0; ++i) {
+		backend_internal *internal = git_vector_get(&db->backends, i);
+		git_odb_backend *b = internal->backend;
+
+		if (b->read_delta != NULL)
+			error = b->read_delta(b, src, tgt, delta, size);
+	}
+
+	return error;
+}
+
 void git_odb_stream_free(git_odb_stream *stream)
 {
 	if (stream == NULL)

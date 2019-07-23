@@ -129,6 +129,11 @@ int git_odb__read_header_or_object(
 /* freshen an entry in the object database */
 int git_odb__freshen(git_odb *db, const git_oid *id);
 
+/* read the delta for an object */
+int git_odb__read_delta(
+	git_odb *db, const git_oid *src, const git_oid *tgt, void **delta,
+	size_t *size);
+
 /* fully free the object; internal method, DO NOT EXPORT */
 void git_odb_object__free(void *object);
 
