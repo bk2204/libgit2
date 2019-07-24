@@ -197,6 +197,9 @@ static void pack_index_free(struct git_pack_file *p)
 		git_futils_mmap_free(&p->index_map);
 		p->index_map.data = NULL;
 	}
+
+	git__free(p->revindex);
+	p->revindex = NULL;
 }
 
 static int pack_index_check(const char *path, struct git_pack_file *p)
@@ -490,6 +493,58 @@ static int nth_packed_object_oid(struct git_oid *oid, const struct git_pack_file
 	}
 }
 
+static int revindex_cmp(const void *a, const void *b)
+{
+	const struct git_pack_revindex_entry *x = a, *y = b;
+
+	if (x->offset < y->offset)
+		return -1;
+	else if (x->offset > y->offset)
+		return 1;
+	return 0;
+}
+
+static int packfile_build_revindex(struct git_pack_file *p)
+{
+	int error;
+	size_t i;
+
+	if (p->revindex)
+		return 0;
+
+	if (!(p->revindex = git__malloc(sizeof(*p->revindex))))
+		return GIT_ENOBUFS;
+
+	if ((error = git_vector_init(p->revindex, p->num_objects, revindex_cmp))) {
+		git__free(p->revindex);
+		return error;
+	}
+
+	for (i = 0; i < p->num_objects; i++) {
+		struct git_pack_revindex_entry *ent;
+		if (!(ent = git__malloc(sizeof(*ent))))
+			goto cleanup;
+		ent->num = i;
+		ent->offset = nth_packed_object_offset(p, i);
+		git_vector_insert(p->revindex, ent);
+	}
+
+	git_vector_sort(p->revindex);
+	return 0;
+
+cleanup:
+	git_vector_free_deep(p->revindex);
+	git__free(p->revindex);
+}
+
+static ssize_t revindex_lookup(struct git_pack_file *p, git_off_t offset)
+{
+	int ret;
+	size_t pos;
+
+	if ((ret =cgit_bsearch_p
+}
+
 int git_packfile__get_delta(
 		struct git_pack_file *p,
 		git_off_t offset,
@@ -512,7 +567,7 @@ int git_packfile__get_delta(
 		git_packfile_stream stream;
 		git_off_t against_offset;
 		git_oid unused;
-		void *buf;
+		void *buf = NULL;
 		size_t bufsize, off, i;
 		ssize_t chunk;
 		int found = 0;
@@ -520,14 +575,17 @@ int git_packfile__get_delta(
 		base_offset = get_delta_base(p, &w_curs, &curpos, type, offset);
 
 		/* Search the index for the item index and then get the OID from it.*/
-		if (git_oid_is_zero(against)) {
-			for (i = 0; i < p->num_objects; i++)
-				if (base_offset == nth_packed_object_offset(p, i)) {
-					found = 1;
-					nth_packed_object_oid(against, p, i);
-				}
-		} else if (!pack_entry_find_offset(&against_offset, &unused, p, against, GIT_OID_HEXSZ))
-			found = 1;
+		size_t vecidx;
+		struct git_pack_revindex_entry ent = {base_offset, 0}, *fent, *fent2;
+
+		packfile_build_revindex(p);
+		git_vector_bsearch(&vecidx, p->revindex, &ent);
+		fent = git_vector_get(p->revindex, vecidx);
+		fent2 = git_vector_get(p->revindex, vecidx + 1);
+		if (!fent || !fent2)
+			return GIT_ENOTFOUND;
+
+		nth_packed_object_oid(against, p, fent);
 
 		git_mwindow_close(&w_curs);
 
@@ -539,28 +597,19 @@ int git_packfile__get_delta(
 			return 0;
 
 		off = 0;
-		bufsize = 65536;
+		bufsize = fent2->offset - fent->offset;
 		buf = git__malloc(bufsize);
+		if (!buf) {
+			return GIT_EBUFS;
+		}
+
 		if ((error = git_packfile_stream_open(&stream, p, curpos)) < 0)
 			return error;
+
 		while ((chunk = git_packfile_stream_read(&stream, buf + off, bufsize - off)) > 0) {
 			GIT_ERROR_CHECK_ALLOC_ADD(&off, off, chunk);
-
-			if (bufsize == off) {
-				size_t newsize;
-				void *newbuf;
-
-				GIT_ERROR_CHECK_ALLOC_ADD(&newsize, bufsize, 1024);
-				GIT_ERROR_CHECK_ALLOC_MULTIPLY(&newsize, newsize / 2, 3);
-				newbuf = git__realloc(buf, newsize);
-				if (!newbuf) {
-					chunk = -1;
-					break;
-				}
-				bufsize = newsize;
-				buf = newbuf;
-			}
 		}
+
 		git_packfile_stream_dispose(&stream);
 		if (!chunk) {
 			*delta = buf;
@@ -1263,6 +1312,7 @@ int git_packfile_alloc(struct git_pack_file **pack_out, const char *path)
 	p->pack_local = 1;
 	p->mtime = (git_time_t)st.st_mtime;
 	p->index_version = -1;
+	p->revindex = NULL;
 
 	if (git_mutex_init(&p->lock)) {
 		git_error_set(GIT_ERROR_OS, "failed to initialize packfile mutex");

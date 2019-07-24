@@ -83,6 +83,11 @@ typedef struct {
 	git_offmap *entries;
 } git_pack_cache;
 
+struct git_pack_revindex_entry {
+	git_off_t offset;
+	size_t num;
+};
+
 struct git_pack_file {
 	git_mwindow_file mwf;
 	git_map index_map;
@@ -98,6 +103,7 @@ struct git_pack_file {
 	unsigned pack_local:1, pack_keep:1, has_cache:1;
 	git_oidmap *idx_cache;
 	git_oid **oids;
+	git_vector *revindex;
 
 	git_pack_cache bases; /* delta base cache */
 
