@@ -513,7 +513,7 @@ static int packfile_build_revindex(struct git_pack_file *p)
 		return 0;
 
 	if (!(p->revindex = git__malloc(sizeof(*p->revindex))))
-		return GIT_ENOBUFS;
+		return GIT_EBUFS;
 
 	if ((error = git_vector_init(p->revindex, p->num_objects, revindex_cmp))) {
 		git__free(p->revindex);
@@ -521,8 +521,8 @@ static int packfile_build_revindex(struct git_pack_file *p)
 	}
 
 	for (i = 0; i < p->num_objects; i++) {
-		struct git_pack_revindex_entry *ent;
-		if (!(ent = git__malloc(sizeof(*ent))))
+		struct git_pack_revindex_entry *ent = git__malloc(sizeof(*ent));
+		if (!ent)
 			goto cleanup;
 		ent->num = i;
 		ent->offset = nth_packed_object_offset(p, i);
@@ -535,14 +535,7 @@ static int packfile_build_revindex(struct git_pack_file *p)
 cleanup:
 	git_vector_free_deep(p->revindex);
 	git__free(p->revindex);
-}
-
-static ssize_t revindex_lookup(struct git_pack_file *p, git_off_t offset)
-{
-	int ret;
-	size_t pos;
-
-	if ((ret =cgit_bsearch_p
+	return GIT_EBUFS;
 }
 
 int git_packfile__get_delta(
@@ -555,7 +548,6 @@ int git_packfile__get_delta(
 	git_mwindow *w_curs = NULL;
 	git_off_t curpos = offset;
 	git_object_t type;
-	git_off_t base_offset;
 	size_t hdrsize;
 	int error;
 
@@ -564,60 +556,48 @@ int git_packfile__get_delta(
 		return error;
 
 	if (type == GIT_OBJECT_OFS_DELTA || type == GIT_OBJECT_REF_DELTA) {
-		git_packfile_stream stream;
-		git_off_t against_offset;
-		git_oid unused;
-		void *buf = NULL;
-		size_t bufsize, off, i;
-		ssize_t chunk;
-		int found = 0;
+		void *buf = NULL, *base;
+		size_t bufsize;
+		size_t vecidx;
+		unsigned int left;
+		struct git_pack_revindex_entry ent, *fent, *fent2;
 
-		base_offset = get_delta_base(p, &w_curs, &curpos, type, offset);
+		ent.offset = get_delta_base(p, &w_curs, &curpos, type, offset);
+		git_mwindow_close(&w_curs);
 
 		/* Search the index for the item index and then get the OID from it.*/
-		size_t vecidx;
-		struct git_pack_revindex_entry ent = {base_offset, 0}, *fent, *fent2;
-
-		packfile_build_revindex(p);
+		if ((error = packfile_build_revindex(p)))
+			goto cleanup;
 		git_vector_bsearch(&vecidx, p->revindex, &ent);
 		fent = git_vector_get(p->revindex, vecidx);
 		fent2 = git_vector_get(p->revindex, vecidx + 1);
 		if (!fent || !fent2)
 			return GIT_ENOTFOUND;
 
-		nth_packed_object_oid(against, p, fent);
-
-		git_mwindow_close(&w_curs);
-
-		if (!found)
-			return GIT_ENOTFOUND;
+		nth_packed_object_oid(against, p, fent->num);
 
 		/* All we want to know is whether one exists. */
 		if (!delta)
 			return 0;
 
-		off = 0;
 		bufsize = fent2->offset - fent->offset;
+		base = git_mwindow_open(&p->mwf, &w_curs, fent->offset, bufsize, &left);
+		if (!base)
+			return GIT_EBUFS;
+
 		buf = git__malloc(bufsize);
 		if (!buf) {
-			return GIT_EBUFS;
-		}
-
-		if ((error = git_packfile_stream_open(&stream, p, curpos)) < 0)
-			return error;
-
-		while ((chunk = git_packfile_stream_read(&stream, buf + off, bufsize - off)) > 0) {
-			GIT_ERROR_CHECK_ALLOC_ADD(&off, off, chunk);
-		}
-
-		git_packfile_stream_dispose(&stream);
-		if (!chunk) {
-			*delta = buf;
-			*size = off;
-		} else {
-			git__free(buf);
 			error = GIT_EBUFS;
+			goto cleanup;
 		}
+
+		memcpy(buf, base, bufsize);
+		// TODO: check CRC.
+
+		*delta = buf;
+		*size = bufsize;
+cleanup:
+		git_mwindow_close(&w_curs);
 		return error;
 	}
 	return GIT_ENOTFOUND;

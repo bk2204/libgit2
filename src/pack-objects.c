@@ -282,12 +282,14 @@ static int get_delta(void **out, git_odb *odb, git_pobject *po)
 	size_t delta_size;
 	void *delta_buf;
 	int error;
+	git_oid unused;
 
 	*out = NULL;
 
 	if (po->reused && !po->delta_data) {
-		if (git_odb__read_delta(odb, &po->delta->id, &po->id, out, &po->delta_size))
+		if (git_odb__read_delta(odb, &unused, &po->id, out, &po->delta_size))
 			goto on_error;
+		po->z_delta_size = po->delta_size;
 		return 0;
 	}
 
@@ -354,6 +356,9 @@ static int write_object(
 		data_len = git_odb_object_size(obj);
 		type = git_odb_object_type(obj);
 	}
+
+	if (po->reused)
+		data_len = po->z_delta_size = po->delta_size;
 
 	/* Write header */
 	hdr_len = git_packfile__object_header(hdr, data_len, type);
@@ -751,10 +756,11 @@ static int delta_cacheable(
 }
 
 static int record_delta(git_packbuilder *pb, struct unpacked *trg,
-		     struct unpacked *src, void *delta_buf, size_t delta_size)
+		     struct git_pobject *src, void *delta_buf, size_t delta_size,
+				 int depth)
 {
 	git_pobject *trg_object = trg->object;
-	git_pobject *src_object = src->object;
+	git_pobject *src_object = src;
 
 	git_packbuilder__cache_lock(pb);
 	if (trg_object->delta_data) {
@@ -785,38 +791,39 @@ static int record_delta(git_packbuilder *pb, struct unpacked *trg,
 
 	trg_object->delta = src_object;
 	trg_object->delta_size = delta_size;
-	trg->depth = src->depth + 1;
+	trg->depth = depth;
 
 	return 0;
 }
 
 static int try_reuse_delta(git_packbuilder *pb, struct unpacked *trg,
-		     struct unpacked *src, size_t max_depth, int *ret)
+		     int *ret)
 {
 	void *delta;
 	struct git_pobject *obj = trg->object;
 	int error;
+	git_oid oid;
 	size_t delta_size;
-
-	/* Don't bother doing diffs between different types */
-	if (obj->type != src->object->type) {
-		*ret = -1;
-		return 0;
-	}
+	git_pobject *src;
 
 	*ret = 0;
 
-	/* Let's not bust the allowed depth. */
-	if (src->depth >= max_depth)
+	if ((error = git_odb__read_delta(pb->odb, &oid, &obj->id, &delta, &delta_size))) {
 		return 0;
+	}
 
-	if ((error = git_odb__read_delta(pb->odb, &src->object->id, &obj->id, &delta, &delta_size)))
+	src = git_oidmap_get(pb->object_ix, &oid);
+	/* We're not packing the object that's the delta base. */
+	if (!src) {
 		return 0;
+	}
 
-	error = record_delta(pb, trg, src, delta, delta_size);
-	if (!error)
+	error = record_delta(pb, trg, src, delta, delta_size, 0);
+	if (!error) {
 		*ret = 1;
-	obj->reused = 1;
+		obj->reused = 1;
+		obj->z_delta_size = delta_size;
+	}
 	return error;
 }
 
@@ -928,7 +935,7 @@ static int try_delta(git_packbuilder *pb, struct unpacked *trg,
 		}
 	}
 
-	retval = record_delta(pb, trg, src, delta_buf, delta_size);
+	retval = record_delta(pb, trg, src_object, delta_buf, delta_size, src->depth + 1);
 	if (!retval)
 		*ret = 1;
 	return retval;
@@ -1001,7 +1008,7 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 	size_t idx = 0, count = 0;
 	size_t mem_usage = 0;
 	size_t i;
-	int error = -1;
+	int error = -1, ret;
 
 	array = git__calloc(window, sizeof(struct unpacked));
 	GIT_ERROR_CHECK_ALLOC(array);
@@ -1009,7 +1016,7 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 	for (;;) {
 		struct unpacked *n = array + idx;
 		size_t max_depth, j, best_base = SIZE_MAX;
-		int found;
+		int found = 0;
 
 		git_packbuilder__progress_lock(pb);
 		if (!*list_size) {
@@ -1052,27 +1059,8 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 
 
 		/* Support reuse-delta */
-		j = window;
-		while (--j > 0) {
-			size_t other_idx = idx + j;
-			struct unpacked *m;
-			int ret;
-
-			if (other_idx >= window)
-				other_idx -= window;
-
-			m = array + other_idx;
-
-			if (!m->object)
-				break;
-
-			/* The object is in our window. */
-			if (!try_reuse_delta(pb, n, m, max_depth, &ret) && ret > 0) {
-				best_base = other_idx;
-				found = 1;
-				break;
-			}
-		}
+		if (!try_reuse_delta(pb, n, &ret) && ret > 0)
+			found = 1;
 
 		if (!found) {
 			j = window;
@@ -1113,8 +1101,12 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 		 * and therefore it is best to go to the write phase ASAP
 		 * instead, as we can afford spending more time compressing
 		 * between writes at that moment.
+		 *
+		 * We don't deflate reused deltas because they're already
+		 * compressed.
 		 */
-		if (po->delta_data) {
+		if (po->delta_data && !po->reused) {
+			/* Reused deltas are already compressed. */
 			if (git_zstream_deflatebuf(&zbuf, po->delta_data, po->delta_size) < 0)
 				goto on_error;
 
@@ -1145,7 +1137,7 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 		 * currently deltified object, to keep it longer.  It will
 		 * be the first base object to be attempted next.
 		 */
-		if (po->delta) {
+		if (po->delta && !po->reused) {
 			struct unpacked swap = array[best_base];
 			size_t dist = (window + idx - best_base) % window;
 			size_t dst = best_base;

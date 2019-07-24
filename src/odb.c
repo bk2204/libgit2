@@ -1430,7 +1430,7 @@ int git_odb_stream_read(git_odb_stream *stream, char *buffer, size_t len)
 }
 
 int git_odb__read_delta(
-	git_odb *db, const git_oid *src, const git_oid *tgt, void **delta,
+	git_odb *db, git_oid *src, const git_oid *tgt, void **delta,
 	size_t *size)
 {
 	size_t i;
