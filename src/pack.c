@@ -499,7 +499,7 @@ static int revindex_cmp(const void *a, const void *b)
 
 	if (x->offset < y->offset)
 		return -1;
-	else if (x->offset > y->offset)
+	if (x->offset > y->offset)
 		return 1;
 	return 0;
 }
@@ -508,6 +508,7 @@ static int packfile_build_revindex(struct git_pack_file *p)
 {
 	int error;
 	size_t i;
+	git_off_t off = 0;
 
 	if (p->revindex)
 		return 0;
@@ -560,7 +561,7 @@ int git_packfile__get_delta(
 		size_t bufsize;
 		size_t vecidx;
 		unsigned int left;
-		struct git_pack_revindex_entry ent, *fent, *fent2;
+		struct git_pack_revindex_entry ent = {0, 0}, *fent, *fent2;
 
 		ent.offset = get_delta_base(p, &w_curs, &curpos, type, offset);
 		git_mwindow_close(&w_curs);
@@ -579,6 +580,11 @@ int git_packfile__get_delta(
 		/* All we want to know is whether one exists. */
 		if (!delta)
 			return 0;
+		*delta = NULL;
+
+		// TODO: fix hack.
+		if (fent2->offset <= fent->offset)
+			return GIT_ENOTFOUND;
 
 		bufsize = fent2->offset - fent->offset;
 		base = git_mwindow_open(&p->mwf, &w_curs, fent->offset, bufsize, &left);

@@ -566,8 +566,7 @@ static int pack_backend__read_delta(
 	error = pack_entry_find(&e, (struct pack_backend *)backend, tgt);
 	if (error)
 		return error;
-	error = git_packfile__get_delta(e.p, e.offset, src, delta, size);
-	return error;
+	return git_packfile__get_delta(e.p, e.offset, src, delta, size);
 }
 
 static void pack_backend__free(git_odb_backend *_backend)

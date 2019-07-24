@@ -357,9 +357,6 @@ static int write_object(
 		type = git_odb_object_type(obj);
 	}
 
-	if (po->reused)
-		data_len = po->z_delta_size = po->delta_size;
-
 	/* Write header */
 	hdr_len = git_packfile__object_header(hdr, data_len, type);
 
@@ -815,6 +812,7 @@ static int try_reuse_delta(git_packbuilder *pb, struct unpacked *trg,
 	src = git_oidmap_get(pb->object_ix, &oid);
 	/* We're not packing the object that's the delta base. */
 	if (!src) {
+		git__free(delta);
 		return 0;
 	}
 
@@ -1106,7 +1104,6 @@ static int find_deltas(git_packbuilder *pb, git_pobject **list,
 		 * compressed.
 		 */
 		if (po->delta_data && !po->reused) {
-			/* Reused deltas are already compressed. */
 			if (git_zstream_deflatebuf(&zbuf, po->delta_data, po->delta_size) < 0)
 				goto on_error;
 
