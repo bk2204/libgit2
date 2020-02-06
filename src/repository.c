@@ -833,6 +833,8 @@ int git_repository_open_ext(
 	repo = repository_alloc();
 	GIT_ERROR_CHECK_ALLOC(repo);
 
+	repo->hash_algo = GIT_HASH_ALGO_SHA1;
+
 	repo->gitdir = git_buf_detach(&gitdir);
 	GIT_ERROR_CHECK_ALLOC(repo->gitdir);
 

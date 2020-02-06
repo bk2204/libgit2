@@ -10,6 +10,7 @@
 #include "common.h"
 
 #include "git2/common.h"
+#include "git2/hash_algo.h"
 #include "git2/oid.h"
 #include "git2/odb.h"
 #include "git2/repository.h"
@@ -151,6 +152,7 @@ struct git_repository {
 	unsigned is_worktree:1;
 
 	unsigned int lru_counter;
+	git_hash_algo hash_algo;
 
 	git_atomic32 attr_session_key;
 
