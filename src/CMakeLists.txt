@@ -112,7 +112,7 @@ ENDIF()
 
 include(SelectHTTPSBackend)
 include(SelectHashes)
-target_sources(git2internal PRIVATE ${SRC_SHA1})
+target_sources(git2internal PRIVATE ${SRC_SHA1} ${SRC_SHA256})
 
 # Specify regular expression implementation
 FIND_PACKAGE(PCRE)

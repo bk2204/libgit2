@@ -23,10 +23,12 @@ typedef enum {
 } git_hash_algo_t;
 
 #include "hash/sha1.h"
+#include "hash/sha256.h"
 
 typedef struct git_hash_ctx {
 	union {
 		git_hash_sha1_ctx sha1;
+		git_hash_sha256_ctx sha256;
 	};
 	git_hash_algo_t algo;
 } git_hash_ctx;
