@@ -15,7 +15,8 @@
 
 #define COMMIT_GRAPH_SIGNATURE 0x43475048 /* "CGPH" */
 #define COMMIT_GRAPH_VERSION 1
-#define COMMIT_GRAPH_OBJECT_ID_VERSION 1
+#define COMMIT_GRAPH_OBJECT_ID_VERSION_SHA1 1
+#define COMMIT_GRAPH_OBJECT_ID_VERSION_SHA256 2
 struct git_commit_graph_header {
 	uint32_t signature;
 	uint8_t version;
@@ -102,7 +103,7 @@ static int commit_graph_parse_commit_data(
 		return commit_graph_error("missing Commit Data chunk");
 	if (chunk_commit_data->length == 0)
 		return commit_graph_error("empty Commit Data chunk");
-	if (chunk_commit_data->length != cgraph->num_commits * (GIT_OID_RAWSZ + 16))
+	if (chunk_commit_data->length != cgraph->num_commits * (git_hash_len(cgraph->hash_algo) + 16))
 		return commit_graph_error("Commit Data chunk has wrong length");
 
 	cgraph->commit_data = data + chunk_commit_data->offset;
@@ -146,8 +147,17 @@ int git_commit_graph_parse(git_commit_graph_file *cgraph, const unsigned char *d
 
 	hdr = ((struct git_commit_graph_header *)data);
 
-	if (hdr->signature != htonl(COMMIT_GRAPH_SIGNATURE) || hdr->version != COMMIT_GRAPH_VERSION
-	    || hdr->object_id_version != COMMIT_GRAPH_OBJECT_ID_VERSION) {
+	if (hdr->signature != htonl(COMMIT_GRAPH_SIGNATURE) || hdr->version != COMMIT_GRAPH_VERSION) {
+		return commit_graph_error("unsupported commit-graph version");
+	}
+	switch (hdr->object_id_version) {
+	case COMMIT_GRAPH_OBJECT_ID_VERSION_SHA1:
+		cgraph->hash_algo = GIT_HASH_ALGO_SHA1;
+		break;
+	case COMMIT_GRAPH_OBJECT_ID_VERSION_SHA256:
+		cgraph->hash_algo = GIT_HASH_ALGO_SHA256;
+		break;
+	default:
 		return commit_graph_error("unsupported commit-graph version");
 	}
 	if (hdr->chunks == 0)

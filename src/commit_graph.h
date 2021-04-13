@@ -10,6 +10,8 @@
 
 #include "common.h"
 
+#include "git2/hash_algo.h"
+
 #include "map.h"
 
 /**
@@ -31,6 +33,9 @@ typedef struct git_commit_graph_file {
 
 	/* The OID Lookup table. */
 	git_oid *oid_lookup;
+
+	/* The hash algorithm. */
+	git_hash_algo hash_algo;
 
 	/*
 	 * The Commit Data table. Each entry contains the OID of the commit followed
