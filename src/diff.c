@@ -16,6 +16,7 @@
 struct patch_id_args {
 	git_hash_ctx ctx;
 	git_oid result;
+	git_hash_algo hash_algo;
 	int first_file;
 };
 
@@ -395,17 +396,18 @@ int git_diff_format_email_init_options(
 }
 #endif
 
-static int flush_hunk(git_oid *result, git_hash_ctx *ctx)
+static int flush_hunk(git_oid *result, git_hash_ctx *ctx, git_hash_algo algo)
 {
 	git_oid hash;
 	unsigned short carry = 0;
-	int error, i;
+	int error;
+	size_t i;
 
 	if ((error = git_hash_final(&hash, ctx)) < 0 ||
 	    (error = git_hash_init(ctx)) < 0)
 		return error;
 
-	for (i = 0; i < GIT_OID_RAWSZ; i++) {
+	for (i = 0; i < git_hash_len(algo); i++) {
 		carry += result->id[i] + hash.id[i];
 		result->id[i] = (unsigned char)carry;
 		carry >>= 8;
@@ -453,7 +455,7 @@ static int diff_patchid_print_callback_to_buf(
 
 	if (line->origin == GIT_DIFF_LINE_FILE_HDR &&
 	    !args->first_file &&
-	    (error = flush_hunk(&args->result, &args->ctx) < 0))
+	    (error = flush_hunk(&args->result, &args->ctx, args->hash_algo) < 0))
 			goto out;
 
 	if ((error = git_hash_update(&args->ctx, buf.ptr, buf.size)) < 0)
@@ -484,6 +486,7 @@ int git_diff_patchid(git_oid *out, git_diff *diff, git_diff_patchid_options *opt
 
 	memset(&args, 0, sizeof(args));
 	args.first_file = 1;
+	args.hash_algo = diff->repo ? diff->repo->hash_algo : GIT_HASH_ALGO_SHA1;
 	if ((error = git_hash_ctx_init(&args.ctx)) < 0)
 		goto out;
 
@@ -493,7 +496,7 @@ int git_diff_patchid(git_oid *out, git_diff *diff, git_diff_patchid_options *opt
 				    &args)) < 0)
 		goto out;
 
-	if ((error = (flush_hunk(&args.result, &args.ctx))) < 0)
+	if ((error = (flush_hunk(&args.result, &args.ctx, args.hash_algo))) < 0)
 		goto out;
 
 	git_oid_cpy(out, &args.result);
