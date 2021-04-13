@@ -30,6 +30,9 @@ void git_hash_ctx_cleanup(git_hash_ctx *ctx)
 		case GIT_HASH_ALGO_SHA1:
 			git_hash_sha1_ctx_cleanup(&ctx->sha1);
 			return;
+		case GIT_HASH_ALGO_SHA256:
+			git_hash_sha256_ctx_cleanup(&ctx->sha256);
+			return;
 		default:
 			/* unreachable */ ;
 	}
@@ -40,6 +43,8 @@ int git_hash_init(git_hash_ctx *ctx)
 	switch (ctx->algo) {
 		case GIT_HASH_ALGO_SHA1:
 			return git_hash_sha1_init(&ctx->sha1);
+		case GIT_HASH_ALGO_SHA256:
+			return git_hash_sha256_init(&ctx->sha256);
 		default:
 			/* unreachable */ ;
 	}
@@ -52,6 +57,8 @@ int git_hash_update(git_hash_ctx *ctx, const void *data, size_t len)
 	switch (ctx->algo) {
 		case GIT_HASH_ALGO_SHA1:
 			return git_hash_sha1_update(&ctx->sha1, data, len);
+		case GIT_HASH_ALGO_SHA256:
+			return git_hash_sha256_update(&ctx->sha256, data, len);
 		default:
 			/* unreachable */ ;
 	}
@@ -64,6 +71,8 @@ int git_hash_final(git_oid *out, git_hash_ctx *ctx)
 	switch (ctx->algo) {
 		case GIT_HASH_ALGO_SHA1:
 			return git_hash_sha1_final(out, &ctx->sha1);
+		case GIT_HASH_ALGO_SHA256:
+			return git_hash_sha256_final(out, &ctx->sha256);
 		default:
 			/* unreachable */ ;
 	}
@@ -85,6 +94,45 @@ int git_hash_buf(git_oid *out, const void *data, size_t len)
 	git_hash_ctx_cleanup(&ctx);
 
 	return error;
+}
+
+size_t git_hash_len(git_hash_algo algo)
+{
+	switch (algo) {
+		case GIT_HASH_ALGO_SHA1:
+			return 20;
+		case GIT_HASH_ALGO_SHA256:
+			return 32;
+		default:
+			assert(0);
+			return -1;
+	}
+}
+
+size_t git_hash_len_hex(git_hash_algo algo)
+{
+	switch (algo) {
+		case GIT_HASH_ALGO_SHA1:
+			return 40;
+		case GIT_HASH_ALGO_SHA256:
+			return 64;
+		default:
+			assert(0);
+			return -1;
+	}
+}
+
+const char *git_hash_zero_value(git_hash_algo algo)
+{
+	switch (algo) {
+		case GIT_HASH_ALGO_SHA1:
+			return GIT_OID_HEX_ZERO;
+		case GIT_HASH_ALGO_SHA256:
+			return GIT_OID_HEX_ZERO_SHA256;
+		default:
+			assert(0);
+			return NULL;
+	}
 }
 
 int git_hash_vec(git_oid *out, git_buf_vec *vec, size_t n)

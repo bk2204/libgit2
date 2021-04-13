@@ -10,17 +10,13 @@
 
 #include "common.h"
 
+#include "git2/hash_algo.h"
 #include "git2/oid.h"
 
 typedef struct {
 	void *data;
 	size_t len;
 } git_buf_vec;
-
-typedef enum {
-	GIT_HASH_ALGO_UNKNOWN = 0,
-	GIT_HASH_ALGO_SHA1,
-} git_hash_algo_t;
 
 #include "hash/sha1.h"
 #include "hash/sha256.h"
@@ -30,7 +26,7 @@ typedef struct git_hash_ctx {
 		git_hash_sha1_ctx sha1;
 		git_hash_sha256_ctx sha256;
 	};
-	git_hash_algo_t algo;
+	git_hash_algo algo;
 } git_hash_ctx;
 
 int git_hash_global_init(void);
@@ -44,5 +40,9 @@ int git_hash_final(git_oid *out, git_hash_ctx *c);
 
 int git_hash_buf(git_oid *out, const void *data, size_t len);
 int git_hash_vec(git_oid *out, git_buf_vec *vec, size_t n);
+
+size_t git_hash_len(git_hash_algo algo);
+size_t git_hash_len_hex(git_hash_algo algo);
+const char *git_hash_zero_value(git_hash_algo algo);
 
 #endif
