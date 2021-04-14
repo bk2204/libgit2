@@ -53,7 +53,7 @@ static int ack_pkt(git_pkt **out, const char *line, size_t len)
 	line += 4;
 	len -= 4;
 
-	if (len < GIT_OID_HEXSZ || git_oid_fromstr(&pkt->oid, line) < 0)
+	if (len < GIT_OID_HEXSZ || git_oid_fromstr(&pkt->oid, line, GIT_HASH_ALGO_SHA1) < 0)
 		goto out_err;
 	line += GIT_OID_HEXSZ;
 	len -= GIT_OID_HEXSZ;
@@ -222,7 +222,7 @@ static int ref_pkt(git_pkt **out, const char *line, size_t len)
 	GIT_ERROR_CHECK_ALLOC(pkt);
 	pkt->type = GIT_PKT_REF;
 
-	if (len < GIT_OID_HEXSZ || git_oid_fromstr(&pkt->head.oid, line) < 0)
+	if (len < GIT_OID_HEXSZ || git_oid_fromstr(&pkt->head.oid, line, GIT_HASH_ALGO_SHA1) < 0)
 		goto out_err;
 	line += GIT_OID_HEXSZ;
 	len -= GIT_OID_HEXSZ;

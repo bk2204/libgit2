@@ -27,7 +27,7 @@ static void diff_stats_from_commit_oid(
 	git_commit *commit;
 	git_diff *diff;
 
-	git_oid_fromstr(&oid, oidstr);
+	git_oid_fromstr(&oid, oidstr, GIT_HASH_ALGO_SHA1);
 	cl_git_pass(git_commit_lookup(&commit, _repo, &oid));
 	cl_git_pass(git_diff__commit(&diff, _repo, commit, NULL));
 	if (rename)

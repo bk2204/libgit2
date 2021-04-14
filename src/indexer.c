@@ -1006,7 +1006,7 @@ static int fix_thin_pack(git_indexer *idx, git_indexer_progress *stats)
 		return -1;
 	}
 
-	git_oid_fromraw(&base, base_info);
+	git_oid_fromraw(&base, base_info, GIT_HASH_ALGO_SHA1);
 	git_mwindow_close(&w);
 
 	if (has_entry(idx, &base))
@@ -1154,7 +1154,7 @@ int git_indexer_commit(git_indexer *idx, git_indexer_progress *stats)
 	}
 
 	/* Compare the packfile trailer as it was sent to us and what we calculated */
-	git_oid_fromraw(&file_hash, packfile_trailer);
+	git_oid_fromraw(&file_hash, packfile_trailer, GIT_HASH_ALGO_SHA1);
 	git_mwindow_close(&w);
 
 	git_hash_final(&trailer_hash, &idx->trailer);

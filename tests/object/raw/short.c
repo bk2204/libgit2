@@ -9,7 +9,7 @@ void test_object_raw_short__oid_shortener_no_duplicates(void)
 	git_oid_shorten *os;
 	int min_len;
 
-	os = git_oid_shorten_new(0);
+	os = git_oid_shorten_new(0, GIT_HASH_ALGO_SHA1);
 	cl_assert(os != NULL);
 
 	git_oid_shorten_add(os, "22596363b3de40b06f981fb85d82312e8c0ed511");
@@ -72,7 +72,7 @@ void test_object_raw_short__oid_shortener_stresstest_git_oid_shorten(void)
 	int min_len = 0, found_collision;
 	char **oids;
 
-	os = git_oid_shorten_new(0);
+	os = git_oid_shorten_new(0, GIT_HASH_ALGO_SHA1);
 	cl_assert(os != NULL);
 
 	/*
@@ -125,7 +125,7 @@ void test_object_raw_short__oid_shortener_too_much_oids(void)
 	git_oid_shorten *os;
 	char **oids;
 
-	os = git_oid_shorten_new(0);
+	os = git_oid_shorten_new(0, GIT_HASH_ALGO_SHA1);
 	cl_assert(os != NULL);
 
 	cl_assert(insert_sequential_oids(&oids, os, MAX_OIDS, MAX_OIDS - 1) < 0);

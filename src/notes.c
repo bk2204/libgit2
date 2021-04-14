@@ -712,7 +712,7 @@ static int process_entry_path(
 		goto cleanup;
 	}
 
-	error = git_oid_fromstr(annotated_object_id, buf.ptr);
+	error = git_oid_fromstr(annotated_object_id, buf.ptr, GIT_HASH_ALGO_SHA1);
 
 cleanup:
 	git_buf_dispose(&buf);

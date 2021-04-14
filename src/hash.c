@@ -68,6 +68,7 @@ int git_hash_update(git_hash_ctx *ctx, const void *data, size_t len)
 
 int git_hash_final(git_oid *out, git_hash_ctx *ctx)
 {
+	out->hash_algo = ctx->algo;
 	switch (ctx->algo) {
 		case GIT_HASH_ALGO_SHA1:
 			return git_hash_sha1_final(out, &ctx->sha1);

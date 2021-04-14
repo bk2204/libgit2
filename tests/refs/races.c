@@ -27,8 +27,8 @@ void test_refs_races__create_matching(void)
 	git_reference *ref, *ref2, *ref3;
 	git_oid id, other_id;
 
-	git_oid_fromstr(&id, commit_id);
-	git_oid_fromstr(&other_id, other_commit_id);
+	git_oid_fromstr(&id, commit_id, GIT_HASH_ALGO_SHA1);
+	git_oid_fromstr(&other_id, other_commit_id, GIT_HASH_ALGO_SHA1);
 
 	cl_git_fail_with(GIT_EMODIFIED, git_reference_create_matching(&ref, g_repo, refname, &other_id, 1, &other_id, NULL));
 
@@ -46,8 +46,8 @@ void test_refs_races__symbolic_create_matching(void)
 	git_reference *ref, *ref2, *ref3;
 	git_oid id, other_id;
 
-	git_oid_fromstr(&id, commit_id);
-	git_oid_fromstr(&other_id, other_commit_id);
+	git_oid_fromstr(&id, commit_id, GIT_HASH_ALGO_SHA1);
+	git_oid_fromstr(&other_id, other_commit_id, GIT_HASH_ALGO_SHA1);
 
 	cl_git_fail_with(GIT_EMODIFIED, git_reference_symbolic_create_matching(&ref, g_repo, "HEAD", other_refname, 1, other_refname, NULL));
 
@@ -65,8 +65,8 @@ void test_refs_races__delete(void)
 	git_reference *ref, *ref2;
 	git_oid id, other_id;
 
-	git_oid_fromstr(&id, commit_id);
-	git_oid_fromstr(&other_id, other_commit_id);
+	git_oid_fromstr(&id, commit_id, GIT_HASH_ALGO_SHA1);
+	git_oid_fromstr(&other_id, other_commit_id, GIT_HASH_ALGO_SHA1);
 
 	/* We can delete a value that matches */
 	cl_git_pass(git_reference_lookup(&ref, g_repo, refname));
@@ -98,8 +98,8 @@ void test_refs_races__switch_oid_to_symbolic(void)
 	git_reference *ref, *ref2, *ref3;
 	git_oid id, other_id;
 
-	git_oid_fromstr(&id, commit_id);
-	git_oid_fromstr(&other_id, other_commit_id);
+	git_oid_fromstr(&id, commit_id, GIT_HASH_ALGO_SHA1);
+	git_oid_fromstr(&other_id, other_commit_id, GIT_HASH_ALGO_SHA1);
 
 	/* Removing a direct ref when it's currently symbolic should fail */
 	cl_git_pass(git_reference_lookup(&ref, g_repo, refname));
@@ -127,8 +127,8 @@ void test_refs_races__switch_symbolic_to_oid(void)
 	git_reference *ref, *ref2, *ref3;
 	git_oid id, other_id;
 
-	git_oid_fromstr(&id, commit_id);
-	git_oid_fromstr(&other_id, other_commit_id);
+	git_oid_fromstr(&id, commit_id, GIT_HASH_ALGO_SHA1);
+	git_oid_fromstr(&other_id, other_commit_id, GIT_HASH_ALGO_SHA1);
 
 	/* Removing a symbolic ref when it's currently direct should fail */
 	cl_git_pass(git_reference_lookup(&ref, g_repo, "refs/symref"));

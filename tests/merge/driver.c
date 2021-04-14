@@ -23,7 +23,7 @@ void test_merge_driver__initialize(void)
     repo = cl_git_sandbox_init(TEST_REPO_PATH);
     git_repository_index(&repo_index, repo);
 
-	git_oid_fromstr(&automergeable_id, AUTOMERGEABLE_IDSTR);
+	git_oid_fromstr(&automergeable_id, AUTOMERGEABLE_IDSTR, GIT_HASH_ALGO_SHA1);
 
     /* Ensure that the user's merge.conflictstyle doesn't interfere */
     cl_git_pass(git_repository_config(&cfg, repo));
@@ -137,7 +137,7 @@ static void merge_branch(void)
 	git_oid their_id;
 	git_annotated_commit *their_head;
 
-	cl_git_pass(git_oid_fromstr(&their_id, BRANCH_ID));
+	cl_git_pass(git_oid_fromstr(&their_id, BRANCH_ID, GIT_HASH_ALGO_SHA1));
 	cl_git_pass(git_annotated_commit_lookup(&their_head, repo, &their_id));
 
 	cl_git_pass(git_merge(repo, (const git_annotated_commit **)&their_head,
@@ -291,7 +291,7 @@ void test_merge_driver__default_can_be_specified(void)
 
 	merge_opts.default_driver = "custom";
 
-	cl_git_pass(git_oid_fromstr(&their_id, BRANCH_ID));
+	cl_git_pass(git_oid_fromstr(&their_id, BRANCH_ID, GIT_HASH_ALGO_SHA1));
 	cl_git_pass(git_annotated_commit_lookup(&their_head, repo, &their_id));
 
 	cl_git_pass(git_merge(repo, (const git_annotated_commit **)&their_head,

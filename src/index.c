@@ -2366,7 +2366,7 @@ static int read_reuc(git_index *index, const char *buffer, size_t size)
 				return index_error_invalid("reading reuc entry oid");
 			}
 
-			git_oid_fromraw(&lost->oid[i], (const unsigned char *) buffer);
+			git_oid_fromraw(&lost->oid[i], (const unsigned char *) buffer, GIT_HASH_ALGO_SHA1);
 			size -= 20;
 			buffer += 20;
 		}
@@ -2715,7 +2715,7 @@ static int parse_index(git_index *index, const char *buffer, size_t buffer_size)
 	}
 
 	/* 160-bit SHA-1 over the content of the index file before this checksum. */
-	git_oid_fromraw(&checksum_expected, (const unsigned char *)buffer);
+	git_oid_fromraw(&checksum_expected, (const unsigned char *)buffer, GIT_HASH_ALGO_SHA1);
 
 	if (git_oid__cmp(&checksum_calculated, &checksum_expected) != 0) {
 		error = index_error_invalid(

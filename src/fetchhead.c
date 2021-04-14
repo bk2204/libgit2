@@ -174,7 +174,8 @@ static int fetchhead_ref_parse(
 	git_buf *ref_name,
 	const char **remote_url,
 	char *line,
-	size_t line_num)
+	size_t line_num,
+	git_hash_algo algo)
 {
 	char *oid_str, *is_merge_str, *desc, *name = NULL;
 	const char *type = NULL;
@@ -196,13 +197,13 @@ static int fetchhead_ref_parse(
 		*is_merge = 1;
 	}
 
-	if (strlen(oid_str) != GIT_OID_HEXSZ) {
+	if (strlen(oid_str) != git_hash_len_hex(algo)) {
 		git_error_set(GIT_ERROR_FETCHHEAD,
 			"invalid object ID in FETCH_HEAD line %"PRIuZ, line_num);
 		return -1;
 	}
 
-	if (git_oid_fromstr(oid, oid_str) < 0) {
+	if (git_oid_fromstr(oid, oid_str, algo) < 0) {
 		const git_error *oid_err = git_error_last();
 		const char *err_msg = oid_err ? oid_err->message : "invalid object ID";
 
@@ -297,7 +298,7 @@ int git_repository_fetchhead_foreach(git_repository *repo,
 		++line_num;
 
 		if ((error = fetchhead_ref_parse(
-				&oid, &is_merge, &name, &remote_url, line, line_num)) < 0)
+				&oid, &is_merge, &name, &remote_url, line, line_num, repo->hash_algo)) < 0)
 			goto done;
 
 		if (git_buf_len(&name) > 0)

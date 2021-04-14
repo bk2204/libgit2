@@ -75,7 +75,7 @@ static int tag_parse(git_tag *tag, const char *buffer, const char *buffer_end)
 	const char *search;
 	unsigned int i;
 
-	if (git_oid__parse(&tag->target, &buffer, buffer_end, "object ") < 0)
+	if (git_oid__parse(&tag->target, &buffer, buffer_end, "object ", GIT_HASH_ALGO_SHA1) < 0)
 		return tag_error("object field invalid");
 
 	if (buffer + 5 >= buffer_end)

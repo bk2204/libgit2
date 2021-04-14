@@ -8,6 +8,7 @@
 #define INCLUDE_git_oid_h__
 
 #include "common.h"
+#include "hash_algo.h"
 #include "types.h"
 
 /**
@@ -33,6 +34,7 @@ GIT_BEGIN_DECL
 typedef struct git_oid {
 	/** raw binary formatted id */
 	unsigned char id[GIT_OID_RAWSZ];
+	git_hash_algo hash_algo;
 } git_oid;
 
 /**
@@ -42,18 +44,20 @@ typedef struct git_oid {
  * @param str input hex string; must be pointing at the start of
  *		the hex sequence and have at least the number of bytes
  *		needed for an oid encoded in hex (40 bytes).
+ * @param algo the hash algorithm for this oid
  * @return 0 or an error code
  */
-GIT_EXTERN(int) git_oid_fromstr(git_oid *out, const char *str);
+GIT_EXTERN(int) git_oid_fromstr(git_oid *out, const char *str, git_hash_algo algo);
 
 /**
  * Parse a hex formatted null-terminated string into a git_oid.
  *
  * @param out oid structure the result is written into.
  * @param str input hex string; must be null-terminated.
+ * @param algo the hash algorithm for this oid
  * @return 0 or an error code
  */
-GIT_EXTERN(int) git_oid_fromstrp(git_oid *out, const char *str);
+GIT_EXTERN(int) git_oid_fromstrp(git_oid *out, const char *str, git_hash_algo algo);
 
 /**
  * Parse N characters of a hex formatted object id into a git_oid.
@@ -64,18 +68,20 @@ GIT_EXTERN(int) git_oid_fromstrp(git_oid *out, const char *str);
  * @param out oid structure the result is written into.
  * @param str input hex string of at least size `length`
  * @param length length of the input string
+ * @param algo the hash algorithm for this oid
  * @return 0 or an error code
  */
-GIT_EXTERN(int) git_oid_fromstrn(git_oid *out, const char *str, size_t length);
+GIT_EXTERN(int) git_oid_fromstrn(git_oid *out, const char *str, size_t length, git_hash_algo algo);
 
 /**
  * Copy an already raw oid into a git_oid structure.
  *
  * @param out oid structure the result is written into.
  * @param raw the raw input bytes to be copied.
+ * @param algo the hash algorithm for this oid
  * @return 0 on success or error code
  */
-GIT_EXTERN(int) git_oid_fromraw(git_oid *out, const unsigned char *raw);
+GIT_EXTERN(int) git_oid_fromraw(git_oid *out, const unsigned char *raw, git_hash_algo algo);
 
 /**
  * Copy a git_oid structure into a raw byte buffer.
@@ -240,9 +246,10 @@ typedef struct git_oid_shorten git_oid_shorten;
  * @param min_length The minimal length for all identifiers,
  *		which will be used even if shorter OIDs would still
  *		be unique.
+ * @param algo the hash algorithm for this oid shortener
  *	@return a `git_oid_shorten` instance, NULL if OOM
  */
-GIT_EXTERN(git_oid_shorten *) git_oid_shorten_new(size_t min_length);
+GIT_EXTERN(git_oid_shorten *) git_oid_shorten_new(size_t min_length, git_hash_algo algo);
 
 /**
  * Add a new OID to set of shortened OIDs and calculate

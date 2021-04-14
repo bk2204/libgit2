@@ -1006,7 +1006,7 @@ int get_delta_base(
 			struct git_pack_entry *entry;
 			git_oid oid;
 
-			git_oid_fromraw(&oid, base_info);
+			git_oid_fromraw(&oid, base_info, GIT_HASH_ALGO_SHA1);
 			if ((entry = git_oidmap_get(p->idx_cache, &oid)) != NULL) {
 				if (entry->offset == 0)
 					return packfile_error("delta offset is zero");
@@ -1480,7 +1480,7 @@ static int pack_entry_find_offset(
 	}
 
 	*offset_out = offset;
-	git_oid_fromraw(found_oid, current);
+	git_oid_fromraw(found_oid, current, GIT_HASH_ALGO_SHA1);
 
 #ifdef INDEX_DEBUG_LOOKUP
 	{

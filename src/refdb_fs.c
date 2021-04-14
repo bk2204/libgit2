@@ -142,7 +142,7 @@ static int packed_reload(refdb_fs_backend *backend)
 
 		/* parse "<OID> <refname>\n" */
 
-		if (git_oid_fromstr(&oid, scan) < 0)
+		if (git_oid_fromstr(&oid, scan, GIT_HASH_ALGO_SHA1) < 0)
 			goto parse_failed;
 		scan += GIT_OID_HEXSZ;
 
@@ -163,7 +163,7 @@ static int packed_reload(refdb_fs_backend *backend)
 		/* look for optional "^<OID>\n" */
 
 		if (*scan == '^') {
-			if (git_oid_fromstr(&oid, scan + 1) < 0)
+			if (git_oid_fromstr(&oid, scan + 1, GIT_HASH_ALGO_SHA1) < 0)
 				goto parse_failed;
 			scan += GIT_OID_HEXSZ + 1;
 
@@ -206,7 +206,7 @@ static int loose_parse_oid(
 		goto corrupted;
 
 	/* we need to get 40 OID characters from the file */
-	if (git_oid_fromstr(oid, str) < 0)
+	if (git_oid_fromstr(oid, str, GIT_HASH_ALGO_SHA1) < 0)
 		goto corrupted;
 
 	/* If the file is longer than 40 chars, the 41st must be a space */

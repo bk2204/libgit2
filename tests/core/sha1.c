@@ -42,7 +42,7 @@ void test_core_sha1__sum(void)
 	git_oid oid, expected;
 
 	cl_git_pass(sha1_file(&oid, FIXTURE_DIR "/hello_c"));
-	git_oid_fromstr(&expected, "4e72679e3ea4d04e0c642f029e61eb8056c7ed94");
+	git_oid_fromstr(&expected, "4e72679e3ea4d04e0c642f029e61eb8056c7ed94", GIT_HASH_ALGO_SHA1);
 	cl_assert_equal_oid(&expected, &oid);
 }
 
@@ -57,7 +57,7 @@ void test_core_sha1__detect_collision_attack(void)
 	cl_assert_equal_s("SHA1 collision attack detected", git_error_last()->message);
 #else
 	cl_git_pass(sha1_file(&oid, FIXTURE_DIR "/shattered-1.pdf"));
-	git_oid_fromstr(&expected, "38762cf7f55934b34d179ae6a4c80cadccbb7f0a");
+	git_oid_fromstr(&expected, "38762cf7f55934b34d179ae6a4c80cadccbb7f0a", GIT_HASH_ALGO_SHA1);
 	cl_assert_equal_oid(&expected, &oid);
 #endif
 }

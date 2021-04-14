@@ -18,7 +18,7 @@ static int maybe_sha_or_abbrev(git_object** out, git_repository *repo, const cha
 {
 	git_oid oid;
 
-	if (git_oid_fromstrn(&oid, spec, speclen) < 0)
+	if (git_oid_fromstrn(&oid, spec, speclen, repo->hash_algo) < 0)
 		return GIT_ENOTFOUND;
 
 	return git_object_lookup_prefix(out, repo, &oid, speclen, GIT_OBJECT_ANY);

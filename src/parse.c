@@ -105,7 +105,7 @@ int git_parse_advance_oid(git_oid *out, git_parse_ctx *ctx)
 {
 	if (ctx->line_len < GIT_OID_HEXSZ)
 		return -1;
-	if ((git_oid_fromstrn(out, ctx->line, GIT_OID_HEXSZ)) < 0)
+	if ((git_oid_fromstrn(out, ctx->line, GIT_OID_HEXSZ, GIT_HASH_ALGO_SHA1)) < 0)
 		return -1;
 	git_parse_advance_chars(ctx, GIT_OID_HEXSZ);
 	return 0;

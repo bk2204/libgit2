@@ -623,7 +623,7 @@ int ssh_certificate_check(git_cert *cert, int valid, const char *host, void *pay
 
 	cl_assert(_remote_ssh_fingerprint);
 
-	cl_git_pass(git_oid_fromstrp(&expected, _remote_ssh_fingerprint));
+	cl_git_pass(git_oid_fromstrp(&expected, _remote_ssh_fingerprint, GIT_HASH_ALGO_SHA1));
 	cl_assert_equal_i(GIT_CERT_HOSTKEY_LIBSSH2, cert->cert_type);
 	key = (git_cert_hostkey *) cert;
 

@@ -174,7 +174,7 @@ static int parse_header_oid(
 	}
 
 	if (len < GIT_OID_MINPREFIXLEN || len > GIT_OID_HEXSZ ||
-		git_oid_fromstrn(oid, ctx->parse_ctx.line, len) < 0)
+		git_oid_fromstrn(oid, ctx->parse_ctx.line, len, GIT_HASH_ALGO_SHA1) < 0)
 		return git_parse_err("invalid hex formatted object id at line %"PRIuZ,
 			ctx->parse_ctx.line_num);
 
