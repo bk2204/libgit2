@@ -100,12 +100,10 @@ size_t git_hash_len(git_hash_algo algo)
 {
 	switch (algo) {
 		case GIT_HASH_ALGO_SHA1:
+		default:
 			return 20;
 		case GIT_HASH_ALGO_SHA256:
 			return 32;
-		default:
-			assert(0);
-			return -1;
 	}
 }
 
@@ -113,12 +111,10 @@ size_t git_hash_len_hex(git_hash_algo algo)
 {
 	switch (algo) {
 		case GIT_HASH_ALGO_SHA1:
+		default:
 			return 40;
 		case GIT_HASH_ALGO_SHA256:
 			return 64;
-		default:
-			assert(0);
-			return -1;
 	}
 }
 
