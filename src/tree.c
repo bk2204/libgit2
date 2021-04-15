@@ -86,8 +86,7 @@ static git_tree_entry *alloc_entry(const char *filename, size_t filename_len, co
 	TREE_ENTRY_CHECK_NAMELEN(filename_len);
 
 	if (GIT_ADD_SIZET_OVERFLOW(&tree_len, sizeof(git_tree_entry), filename_len) ||
-	    GIT_ADD_SIZET_OVERFLOW(&tree_len, tree_len, 1) ||
-	    GIT_ADD_SIZET_OVERFLOW(&tree_len, tree_len, GIT_OID_RAWSZ))
+	    GIT_ADD_SIZET_OVERFLOW(&tree_len, tree_len, 1))
 		return NULL;
 
 	entry = git__calloc(1, tree_len);
@@ -96,15 +95,12 @@ static git_tree_entry *alloc_entry(const char *filename, size_t filename_len, co
 
 	{
 		char *filename_ptr;
-		void *id_ptr;
 
 		filename_ptr = ((char *) entry) + sizeof(git_tree_entry);
 		memcpy(filename_ptr, filename, filename_len);
 		entry->filename = filename_ptr;
 
-		id_ptr = filename_ptr + filename_len + 1;
-		git_oid_cpy(id_ptr, id);
-		entry->oid = id_ptr;
+		git_oid_cpy(&entry->oid, id);
 	}
 
 	entry->filename_len = (uint16_t)filename_len;
@@ -230,7 +226,7 @@ int git_tree_entry_dup(git_tree_entry **dest, const git_tree_entry *source)
 
 	GIT_ASSERT_ARG(source);
 
-	cpy = alloc_entry(source->filename, source->filename_len, source->oid);
+	cpy = alloc_entry(source->filename, source->filename_len, &source->oid);
 	if (cpy == NULL)
 		return -1;
 
@@ -268,7 +264,7 @@ const char *git_tree_entry_name(const git_tree_entry *entry)
 const git_oid *git_tree_entry_id(const git_tree_entry *entry)
 {
 	GIT_ASSERT_ARG_WITH_RETVAL(entry, NULL);
-	return entry->oid;
+	return &entry->oid;
 }
 
 git_object_t git_tree_entry_type(const git_tree_entry *entry)
@@ -291,7 +287,7 @@ int git_tree_entry_to_object(
 	GIT_ASSERT_ARG(entry);
 	GIT_ASSERT_ARG(object_out);
 
-	return git_object_lookup(object_out, repo, entry->oid, GIT_OBJECT_ANY);
+	return git_object_lookup(object_out, repo, &entry->oid, GIT_OBJECT_ANY);
 }
 
 static const git_tree_entry *entry_fromname(
@@ -330,7 +326,7 @@ const git_tree_entry *git_tree_entry_byid(
 	GIT_ASSERT_ARG_WITH_RETVAL(tree, NULL);
 
 	git_array_foreach(tree->entries, i, e) {
-		if (memcmp(&e->oid->id, &id->id, sizeof(id->id)) == 0)
+		if (git_oid_cmp(&e->oid, id) == 0)
 			return e;
 	}
 
@@ -420,7 +416,7 @@ int git_tree__parse_raw(void *_tree, const char *data, size_t size)
 			entry->attr = attr;
 			entry->filename_len = (uint16_t)filename_len;
 			entry->filename = buffer;
-			entry->oid = (git_oid *) ((char *) buffer + filename_len + 1);
+			git_oid_fromraw(&entry->oid, ((const unsigned char *) buffer + filename_len + 1), GIT_HASH_ALGO_SHA1);
 		}
 
 		buffer += filename_len + 1;
@@ -525,7 +521,7 @@ static int git_treebuilder__write_with_buffer(
 
 		git_buf_printf(buf, "%o ", entry->attr);
 		git_buf_put(buf, entry->filename, entry->filename_len + 1);
-		git_buf_put(buf, (char *)entry->oid->id, GIT_OID_RAWSZ);
+		git_buf_put(buf, (char *)entry->oid.id, git_hash_len(entry->oid.hash_algo));
 
 		if (git_buf_oom(buf)) {
 			error = -1;
@@ -754,7 +750,7 @@ int git_treebuilder_new(
 		git_array_foreach(source->entries, i, entry_src) {
 			if (append_entry(
 				bld, entry_src->filename,
-				entry_src->oid,
+				&entry_src->oid,
 				entry_src->attr,
 				false) < 0)
 				goto on_error;
@@ -787,7 +783,7 @@ int git_treebuilder_insert(
 		return error;
 
 	if ((entry = git_strmap_get(bld->map, filename)) != NULL) {
-		git_oid_cpy((git_oid *) entry->oid, id);
+		git_oid_cpy(&entry->oid, id);
 	} else {
 		entry = alloc_entry(filename, strlen(filename), id);
 		GIT_ERROR_CHECK_ALLOC(entry);
@@ -943,7 +939,7 @@ int git_tree_entry_bypath(
 		return git_tree_entry_dup(entry_out, entry);
 	}
 
-	if (git_tree_lookup(&subtree, root->object.repo, entry->oid) < 0)
+	if (git_tree_lookup(&subtree, root->object.repo, &entry->oid) < 0)
 		return -1;
 
 	error = git_tree_entry_bypath(
@@ -984,7 +980,7 @@ static int tree_walk(
 			git_tree *subtree;
 			size_t path_len = git_buf_len(path);
 
-			error = git_tree_lookup(&subtree, tree->object.repo, entry->oid);
+			error = git_tree_lookup(&subtree, tree->object.repo, &entry->oid);
 			if (error < 0)
 				break;
 
