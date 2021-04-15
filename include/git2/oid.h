@@ -78,6 +78,15 @@ GIT_EXTERN(int) git_oid_fromstrn(git_oid *out, const char *str, size_t length);
 GIT_EXTERN(int) git_oid_fromraw(git_oid *out, const unsigned char *raw);
 
 /**
+ * Copy a git_oid structure into a raw byte buffer.
+ *
+ * @param out the raw output bytes to write
+ * @param src the source oid to copy from
+ * @return 0 on success or error code
+ */
+GIT_EXTERN(int) git_oid_toraw(unsigned char *out, const git_oid *src);
+
+/**
  * Format a git_oid into a hex string.
  *
  * @param out output hex string; must be pointing at the start of

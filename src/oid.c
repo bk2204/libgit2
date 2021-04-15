@@ -178,6 +178,12 @@ int git_oid_fromraw(git_oid *out, const unsigned char *raw)
 	return 0;
 }
 
+int git_oid_toraw(unsigned char *out, const git_oid *src)
+{
+	memcpy(out, src->id, git_hash_len(src->hash_algo));
+	return 0;
+}
+
 int git_oid_cpy(git_oid *out, const git_oid *src)
 {
 	memcpy(out->id, src->id, sizeof(out->id));
