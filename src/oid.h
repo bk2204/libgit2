@@ -27,6 +27,12 @@ GIT_INLINE(int) git_oid__hashcmp(const unsigned char *sha1, const unsigned char 
 	return memcmp(sha1, sha2, GIT_OID_RAWSZ);
 }
 
+GIT_INLINE(int) git_oid__zero_oid(git_oid *out, git_hash_algo algo)
+{
+	memset(out->id, 0, sizeof(out->id));
+	return 0;
+}
+
 /*
  * Compare two oid structures.
  *
